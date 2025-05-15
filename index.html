@@ -30,6 +30,7 @@
     .msg-file { display: inline-block; margin: 0.2em 0; }
     .voice-btn { border: none; background: none; font-size: 1.4em; color: #3390ec;}
     .voice-btn.active { color: #43d854;}
+    .voice-indicator { color: #43d854; font-weight: bold;}
     @media (max-width: 600px) {
       .avatar { width: 50px; height: 50px; font-size: 1.4em;}
       .modal-profile { min-width:220px; }
@@ -89,11 +90,14 @@
       start_voice: "Start voice call",
       stop_voice: "Stop voice call",
       you: "You",
-      peer: "Peer"
+      peer: "Peer",
+      voice_call_active: "Voice call active"
     };
     let page = "home";
     let peer = null, conn = null, call = null, chatHistory = [];
     let myStream = null, remoteStream = null;
+    let myNick = "", peerNick = "";
+    let peerId = localStorage.getItem('dpm-peerid');
 
     function renderHeader() {
       document.getElementById("header").innerHTML = `
@@ -204,7 +208,7 @@
 
     function renderProfile() {
       const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
-      let peerId = localStorage.getItem('dpm-peerid');
+      myNick = user.nick || "You";
       if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
       let avatarLetter = (user.nick && user.nick.length > 0) ? user.nick[0].toUpperCase() : "U";
       let avatarHtml = `<div class="avatar online" title="${t.online}">${avatarLetter}</div>`;
@@ -239,10 +243,10 @@
       document.getElementById('to-chat').onclick = () => { page = 'chat'; render(); };
     }
 
-    // CHAT + VOICE + FILES
+    // CHAT + VOICE + FILES + NICKNAMES
     function renderChat() {
       const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
-      let peerId = localStorage.getItem('dpm-peerid');
+      myNick = user.nick || "You";
       if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
       document.getElementById('app').innerHTML = `
         <section class="page-chat">
@@ -255,6 +259,7 @@
                 <button class="btn btn-success mt-2 w-100" id="connect-btn">${t.connect}</button>
                 <button class="btn btn-secondary mt-2 w-100 d-none" id="disconnect-btn">${t.disconnect}</button>
               </div>
+              <div id="voice-indicator" class="text-center mb-2"></div>
               <div id="chat-box" class="mb-2"></div>
               <div class="input-group mb-2">
                 <input type="text" id="chat-input" class="form-control" placeholder="Message..." autocomplete="off" />
@@ -278,7 +283,6 @@
         }
       };
 
-      // Drag&Drop
       document.getElementById('chat-box').ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; };
       document.getElementById('chat-box').ondrop = e => {
         e.preventDefault();
@@ -325,26 +329,34 @@
     function disconnectPeer() {
       if (conn) conn.close();
       conn = null;
+      peerNick = "";
       renderChatBox();
       document.getElementById('connect-btn').classList.remove('d-none');
       document.getElementById('disconnect-btn').classList.add('d-none');
     }
     function setupConn() {
       conn.on('open', ()=> {
+        // Send my nick
+        conn.send({type:"nick", nick:myNick});
         document.getElementById('connect-btn').classList.add('d-none');
         document.getElementById('disconnect-btn').classList.remove('d-none');
         renderChatBox();
       });
       conn.on('data', data => {
         if (typeof data === "string") {
-          chatHistory.push({from:"peer", text:data, type:"msg"});
+          chatHistory.push({from:peerNick||t.peer, text:data, type:"msg"});
+        } else if (data && data.type === "nick") {
+          peerNick = data.nick || t.peer;
         } else if (data && data.type === "file") {
-          chatHistory.push({from:"peer", type:"file", name:data.name, size:data.size, file:data.file});
+          chatHistory.push({from:peerNick||t.peer, type:"file", name:data.name, size:data.size, file:data.file});
         }
         renderChatBox();
       });
+      // Also send my nick if connection is already open
+      if (conn.open) conn.send({type:"nick", nick:myNick});
       conn.on('close', ()=> {
         conn = null;
+        peerNick = "";
         renderChatBox();
         document.getElementById('connect-btn').classList.remove('d-none');
         document.getElementById('disconnect-btn').classList.add('d-none');
@@ -355,7 +367,7 @@
       const msg = input.value.trim();
       if (!msg || !conn || !conn.open) return;
       conn.send(msg);
-      chatHistory.push({from:"me", text:msg, type:"msg"});
+      chatHistory.push({from:myNick, text:msg, type:"msg"});
       input.value = "";
       renderChatBox();
     }
@@ -364,7 +376,7 @@
       reader.onload = function() {
         const arr = new Uint8Array(reader.result);
         conn.send({type:"file", name:file.name, size:file.size, file:arr});
-        chatHistory.push({from:"me", type:"file", name:file.name, size:file.size, file:arr});
+        chatHistory.push({from:myNick, type:"file", name:file.name, size:file.size, file:arr});
         renderChatBox();
       };
       reader.readAsArrayBuffer(file);
@@ -375,16 +387,23 @@
       box.innerHTML = "";
       chatHistory.forEach(msg => {
         if (msg.type === "msg") {
-          box.innerHTML += `<div class="mb-1 ${msg.from==='me'?'msg-self':'msg-peer'}"><b>${msg.from==='me'?t.you:t.peer}:</b> ${msg.text}</div>`;
+          box.innerHTML += `<div class="mb-1 ${msg.from===myNick?'msg-self':'msg-peer'}"><b>${msg.from}:</b> ${msg.text}</div>`;
         } else if (msg.type === "file") {
           const blob = new Blob([msg.file]);
           const url = URL.createObjectURL(blob);
-          box.innerHTML += `<div class="mb-1 ${msg.from==='me'?'msg-self':'msg-peer'} msg-file">
-            <b>${msg.from==='me'?t.you:t.peer}:</b> <a href="${url}" download="${msg.name}">${t.file}: ${msg.name} (${(msg.size/1024).toFixed(1)} KB)</a>
+          box.innerHTML += `<div class="mb-1 ${msg.from===myNick?'msg-self':'msg-peer'} msg-file">
+            <b>${msg.from}:</b> <a href="${url}" download="${msg.name}">${t.file}: ${msg.name} (${(msg.size/1024).toFixed(1)} KB)</a>
           </div>`;
         }
       });
       box.scrollTop = box.scrollHeight;
+      // Voice call indicator
+      const vi = document.getElementById('voice-indicator');
+      if (call) {
+        vi.innerHTML = `<span class="voice-indicator"><i class="fas fa-phone"></i> ${t.voice_call_active}</span>`;
+      } else {
+        vi.innerHTML = "";
+      }
     }
 
     // VOICE CHAT
@@ -399,6 +418,7 @@
         }
         btn.classList.remove('active');
         document.getElementById('remote-audio').style.display = "none";
+        renderChatBox();
         return;
       }
       if (!conn || !conn.open) return;
@@ -407,6 +427,7 @@
         call = peer.call(conn.peer, stream);
         setupCall();
         btn.classList.add('active');
+        renderChatBox();
       });
     }
     function setupCall() {
@@ -416,6 +437,7 @@
         audio.srcObject = remote;
         audio.style.display = "block";
         audio.play();
+        renderChatBox();
       });
       call.on('close', () => {
         const audio = document.getElementById('remote-audio');
@@ -427,6 +449,7 @@
           myStream = null;
         }
         document.getElementById('voice-btn').classList.remove('active');
+        renderChatBox();
       });
     }
 
