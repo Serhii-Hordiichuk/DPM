@@ -2,13 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DPM Test</title>
+  <title>DPM: Decentralized Private Messenger</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrious/dist/qrious.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
-    body { background: #eaeff2; color: #222b3a;}
+    body { font-family: 'Roboto', sans-serif; background: #eaeff2; color: #222b3a;}
     header, nav, footer { background: #fff;}
+    .nav-link.active { color: #3390ec !important;}
+    .btn-primary { background: #3390ec;}
+    .btn-primary:hover { background: #1976d2;}
+    .btn-success { background: #43d854;}
+    .btn-success:hover { background: #2ba33a;}
+    .btn-secondary { background: #7c8a9a;}
     footer { margin-top: 3rem; text-align: center; border-top: 1px solid #d3dde6;}
+    .btn-circle { border-radius:50%; }
+    .avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #3390ec 60%, #43d854 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 2.2em; margin: 0 auto 10px auto; box-shadow: 0 2px 16px #3390ec22; object-fit: cover; overflow: hidden;}
+    .avatar img { width: 100%; height: 100%; object-fit:cover; border-radius: 50%;}
+    .avatar.online { box-shadow: 0 0 0 4px #43d85455; }
+    .copy-btn { border: none; background: none; color: #3390ec; cursor: pointer; }
+    .copy-btn:hover { color: #1976d2; }
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #43d854; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px #43d85499;}
+    .modal-profile { position: fixed; top:50%; left:50%; transform:translate(-50%,-50%); background: #fff; color: #222b3a; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); z-index:1050; min-width: 320px; max-width: 95vw; padding: 2rem 1.5rem 1rem 1.5rem;}
+    .modal-backdrop { position: fixed; top:0; left:0; width:100vw; height:100vh; background: rgba(0,0,0,0.3); z-index:1040;}
+    #chat-box { background: #f4f8fb; border: 1px solid #d3dde6; border-radius: 0.5rem; min-height: 200px; max-height: 350px; overflow-y: auto; padding: 1rem;}
+    .msg-self { text-align: right; color: #3390ec; }
+    .msg-peer { text-align: left; color: #43d854; }
+    .msg-file { display: inline-block; margin: 0.2em 0; }
+    .voice-btn, .video-btn { border: none; background: none; font-size: 1.4em; color: #3390ec;}
+    .voice-btn.active, .video-btn.active { color: #43d854;}
+    .emoji-btn { border: none; background: none; font-size: 1.2em; color: #3390ec;}
+    .gallery-img { width: 70px; height: 70px; object-fit:cover; margin: 0.3em; border-radius: 7px; border: 1px solid #ccc;}
+    .qr-modal { text-align:center; }
+    .qr-modal img { margin: 1em auto; }
+    @media (max-width: 600px) {
+      .avatar { width: 50px; height: 50px; font-size: 1.4em;}
+      .modal-profile { min-width:220px; }
+      #chat-box { font-size: 0.95em; }
+    }
+    body.night { background: #17212b !important; color: #e9e9eb !important;}
   </style>
 </head>
 <body>
@@ -17,42 +52,635 @@
   <main id="app"></main>
   <footer id="footer"></footer>
   <script>
+    // === TRANSLATIONS ===
+    const translations = {
+      en: {
+        registration: "Registration",
+        nickname: "Nickname",
+        password: "Password",
+        captcha: "Captcha",
+        register: "Register",
+        enter_nick_pass: "Enter nickname and password",
+        wrong_captcha: "Wrong captcha answer",
+        login: "Login",
+        wrong_login: "Wrong nickname or password",
+        edit_profile: "Profile Settings",
+        save: "Save",
+        copy: "Copy",
+        copied: "Copied!",
+        clear_history: "Clear history",
+        history_cleared: "History cleared",
+        logout: "Logout",
+        nav_profile: "Profile",
+        nav_chat: "Chat",
+        nav_gallery: "Gallery",
+        footer_made: "Made with ❤️",
+        title: "Decentralized Private Messenger",
+        about_title: "About DPM",
+        about_desc: "DPM is a secure messenger that works directly between users without central servers.",
+        adv1: "No central servers - your data stays between you and your contacts",
+        adv2: "End-to-end encryption for all messages",
+        adv3: "No registration required - just create a nickname",
+        adv4: "Open source and transparent",
+        how1: "Create a nickname and password",
+        how2: "Share your peer ID with contacts",
+        how3: "Start chatting securely",
+        go_profile: "Go to Profile",
+        online: "Online",
+        peer_id: "Peer ID",
+        connect: "Connect",
+        disconnect: "Disconnect",
+        send: "Send",
+        enter_peerid: "Enter peer's ID",
+        file: "File",
+        select_file: "Select file",
+        drop_file: "Drop file here",
+        voice: "Voice",
+        video: "Video",
+        you: "You",
+        peer: "Peer",
+        gallery: "Gallery",
+        show_qr: "Show QR",
+        notifications: "Notifications",
+        enable_notifications: "Enable notifications",
+        emoji: "Emoji",
+        avatar: "Avatar (photo)",
+        upload_avatar: "Upload photo",
+        lang: "Language",
+        theme: "Theme"
+      },
+      ua: {
+        registration: "Реєстрація",
+        nickname: "Нікнейм",
+        password: "Пароль",
+        captcha: "Капча",
+        register: "Зареєструватися",
+        enter_nick_pass: "Введіть нікнейм та пароль",
+        wrong_captcha: "Неправильна відповідь капчі",
+        login: "Увійти",
+        wrong_login: "Неправильний нікнейм або пароль",
+        edit_profile: "Налаштування профілю",
+        save: "Зберегти",
+        copy: "Копіювати",
+        copied: "Скопійовано!",
+        clear_history: "Очистити історію",
+        history_cleared: "Історію очищено",
+        logout: "Вийти",
+        nav_profile: "Профіль",
+        nav_chat: "Чат",
+        nav_gallery: "Галерея",
+        footer_made: "Зроблено з ❤️",
+        title: "Децентралізований Приватний Месенджер",
+        about_title: "Про DPM",
+        about_desc: "DPM - це безпечний месенджер, який працює напряму між користувачами без центральних серверів.",
+        adv1: "Немає центральних серверів - ваші дані залишаються між вами та вашими контактами",
+        adv2: "End-to-end шифрування для всіх повідомлень",
+        adv3: "Не потрібна реєстрація - просто створіть нікнейм",
+        adv4: "Відкритий код та прозорість",
+        how1: "Створіть нікнейм та пароль",
+        how2: "Поділіться своїм peer ID з контактами",
+        how3: "Почніть спілкування безпечно",
+        go_profile: "Перейти до профілю",
+        online: "Онлайн",
+        peer_id: "Peer ID",
+        connect: "Підключитись",
+        disconnect: "Від'єднатись",
+        send: "Відправити",
+        enter_peerid: "Введіть Peer ID співрозмовника",
+        file: "Файл",
+        select_file: "Вибрати файл",
+        drop_file: "Перетягніть файл сюди",
+        voice: "Голос",
+        video: "Відео",
+        you: "Ви",
+        peer: "Співрозмовник",
+        gallery: "Галерея",
+        show_qr: "Показати QR",
+        notifications: "Сповіщення",
+        enable_notifications: "Увімкнути сповіщення",
+        emoji: "Емодзі",
+        avatar: "Аватар (фото)",
+        upload_avatar: "Завантажити фото",
+        lang: "Мова",
+        theme: "Тема"
+      }
+    };
+
+    let lang = localStorage.getItem('lang') || 'en';
+    let t = translations[lang];
+    let page = "home";
+    let peer = null, conn = null, call = null, videoCall = null, chatHistory = [];
+    let myStream = null, remoteStream = null, myNick = "", peerNick = "";
+    let peerId = localStorage.getItem('dpm-peerid');
+    let gallery = JSON.parse(localStorage.getItem('dpm-gallery') || '[]');
+    let avatarPhoto = localStorage.getItem('dpm-avatar') || "";
+
     function renderHeader() {
       document.getElementById("header").innerHTML = `
         <div class="container-fluid py-2 px-3 d-flex align-items-center justify-content-between flex-wrap">
-          <span class="fs-4 fw-bold"><i class="fas fa-shield-alt text-primary"></i> DPM</span>
-        </div>`;
+          <span class="fs-4 fw-bold d-flex align-items-center gap-2">
+            <i class="fas fa-shield-alt text-primary"></i> DPM
+          </span>
+          <div class="d-flex align-items-center gap-2">
+            <button id="lang-btn" class="btn btn-light btn-circle" title="${t.lang}" style="width:38px;height:38px;">
+              <i class="fas fa-language"></i>
+            </button>
+            <button id="theme-btn" class="btn btn-light btn-circle" title="${t.theme}" style="width:38px;height:38px;">
+              <i id="theme-icon" class="fas fa-sun"></i>
+            </button>
+          </div>
+        </div>
+      `;
+      document.getElementById("lang-btn").onclick = () => {
+        lang = (lang === "ua") ? "en" : "ua";
+        localStorage.setItem("lang", lang);
+        t = translations[lang];
+        render();
+      };
+      document.getElementById("theme-btn").onclick = () => {
+        document.body.classList.toggle("night");
+        localStorage.setItem("theme", document.body.classList.contains("night") ? "night" : "day");
+      };
     }
+
     function renderNav() {
-      document.getElementById("nav").innerHTML = `
-        <ul class="nav nav-pills justify-content-center">
-          <li class="nav-item"><a class="nav-link active" href="#" id="nav-home">Home</a></li>
-        </ul>`;
+      if (page === "profile" || page === "chat" || page === "gallery") {
+        document.getElementById("nav").innerHTML = `
+          <ul class="nav nav-pills justify-content-center">
+            <li class="nav-item">
+              <a class="nav-link${page==='profile'?' active':''}" href="#" id="nav-profile"><i class="fas fa-user"></i> ${t.nav_profile}</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link${page==='chat'?' active':''}" href="#" id="nav-chat"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link${page==='gallery'?' active':''}" href="#" id="nav-gallery"><i class="fas fa-images"></i> ${t.nav_gallery}</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" id="nav-logout"><i class="fas fa-sign-out-alt"></i> ${t.logout}</a>
+            </li>
+          </ul>
+        `;
+        document.getElementById("nav-profile").onclick = e => { e.preventDefault(); page = "profile"; render(); };
+        document.getElementById("nav-chat").onclick = e => { e.preventDefault(); page = "chat"; render(); };
+        document.getElementById("nav-gallery").onclick = e => { e.preventDefault(); page = "gallery"; render(); };
+        document.getElementById("nav-logout").onclick = e => {
+          e.preventDefault(); localStorage.removeItem("dpm-user"); page = "home"; render();
+        };
+      } else {
+        document.getElementById("nav").innerHTML = "";
+      }
     }
+
     function renderFooter() {
-      document.getElementById("footer").innerHTML = `<div>© 2025 DPM | Test footer</div>`;
+      document.getElementById("footer").innerHTML = `
+        <div>
+          <span>© 2025 DPM | ${t.footer_made}</span>
+        </div>
+      `;
     }
-    function renderHome() {
+
+    function showRegisterModal() {
+      const a = Math.floor(Math.random() * 10 + 1), b = Math.floor(Math.random() * 10 + 1), captchaAnswer = a + b;
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-profile">
+          <h5 class="mb-3 text-center">${t.registration}</h5>
+          <input type="text" id="register-nick" placeholder="${t.nickname}" class="form-control mb-2" />
+          <input type="password" id="register-pass" placeholder="${t.password}" class="form-control mb-2" />
+          <div class="mb-2">${t.captcha}: <b>${a} + ${b}</b>?</div>
+          <input type="text" id="register-captcha" placeholder="${t.captcha}" class="form-control mb-2" />
+          <button class="btn btn-primary w-100" id="register-btn">${t.register}</button>
+          <div id="register-err" class="text-danger mt-2"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector('#register-btn').onclick = () => {
+        const nick = modal.querySelector('#register-nick').value.trim();
+        const pass = modal.querySelector('#register-pass').value.trim();
+        const captcha = modal.querySelector('#register-captcha').value.trim();
+        const err = modal.querySelector('#register-err');
+        if (!nick || !pass) { err.textContent = t.enter_nick_pass; return; }
+        if (+captcha !== captchaAnswer) { err.textContent = t.wrong_captcha; return; }
+        localStorage.setItem('dpm-user', JSON.stringify({nick, pass, avatar: '', status: 'online'}));
+        document.body.removeChild(modal);
+        page = 'profile'; render();
+      };
+      modal.querySelector('.modal-backdrop').onclick = () => {};
+    }
+
+    function renderProfile() {
+      const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
+      myNick = user.nick || "You";
+      if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
+      let avatarHtml = avatarPhoto
+        ? `<div class="avatar online"><img src="${avatarPhoto}" alt="avatar"></div>`
+        : `<div class="avatar online">${myNick[0]||"U"}</div>`;
       document.getElementById('app').innerHTML = `
-        <section>
-          <h2 class="mb-4 text-center">DPM TEST PAGE</h2>
-          <div class="card shadow-sm mb-4">
-            <div class="card-body">
-              <h5 class="card-title">If you see this, rendering works!</h5>
-              <p>Now try the full code via HTTP server, not file://</p>
+        <section class="page-profile">
+          <h2 class="mb-4 text-center"><i class="fas fa-user"></i> ${t.nav_profile}</h2>
+          <div class="card mx-auto" style="max-width: 400px;">
+            <div class="card-body text-center">
+              ${avatarHtml}
+              <div class="mb-2">
+                <span class="status-dot"></span>
+                <span>${t.online}</span>
+              </div>
+              <div class="mb-2"><b>${t.nickname}:</b> <span id="profile-nick">${user.nick || ""}</span></div>
+              <div class="mb-2"><b>${t.password}:</b> ********</div>
+              <div class="mb-3">
+                <b>${t.peer_id}:</b>
+                <span id="profile-peerid" style="font-family:monospace">${peerId}</span>
+                <button class="copy-btn" id="copy-peerid" title="${t.copy}"><i class="fas fa-copy"></i></button>
+                <button class="btn btn-outline-secondary btn-sm ms-2" id="show-qr" title="${t.show_qr}"><i class="fas fa-qrcode"></i></button>
+                <span id="copy-status" class="text-success ms-2"></span>
+              </div>
+              <button class="btn btn-outline-primary w-100 mb-2" id="edit-avatar"><i class="fas fa-image"></i> ${t.upload_avatar}</button>
+              <button class="btn btn-outline-primary w-100 mb-2" id="to-chat"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</button>
             </div>
           </div>
         </section>
       `;
+      document.getElementById('copy-peerid').onclick = () => {
+        navigator.clipboard.writeText(peerId);
+        document.getElementById('copy-status').textContent = t.copied;
+        setTimeout(()=>{document.getElementById('copy-status').textContent='';},1500);
+      };
+      document.getElementById('to-chat').onclick = () => { page = 'chat'; render(); };
+      document.getElementById('edit-avatar').onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function(evt) {
+            avatarPhoto = evt.target.result;
+            localStorage.setItem('dpm-avatar', avatarPhoto);
+            render();
+          };
+          reader.readAsDataURL(file);
+        };
+        input.click();
+      };
+      document.getElementById('show-qr').onclick = () => {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+          <div class="modal-backdrop"></div>
+          <div class="modal-profile qr-modal">
+            <h5>${t.qr_code||'QR Code'}</h5>
+            <canvas id="qr-canvas"></canvas>
+            <div class="mt-2"><b>${t.peer_id}:</b> <span style="font-family:monospace">${peerId}</span></div>
+            <button class="btn btn-secondary mt-2" id="close-qr">Close</button>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        new QRious({element:modal.querySelector('#qr-canvas'), value:peerId, size:180});
+        modal.querySelector('#close-qr').onclick = () => document.body.removeChild(modal);
+      };
     }
+
+    let peerNick = "";
+    function renderChat() {
+      const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
+      myNick = user.nick || "You";
+      if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
+      document.getElementById('app').innerHTML = `
+        <section class="page-chat">
+          <h2 class="mb-4 text-center"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</h2>
+          <div class="card mx-auto" style="max-width: 500px;">
+            <div class="card-body">
+              <div class="mb-2"><b>${t.peer_id}:</b> <span style="font-family:monospace">${peerId}</span></div>
+              <div class="mb-2">
+                <input type="text" id="peerid-input" class="form-control" placeholder="${t.enter_peerid}" />
+                <button class="btn btn-success mt-2 w-100" id="connect-btn">${t.connect}</button>
+                <button class="btn btn-secondary mt-2 w-100 d-none" id="disconnect-btn">${t.disconnect}</button>
+              </div>
+              <div id="chat-box" class="mb-2" style="position:relative;"></div>
+              <div class="input-group mb-2" style="position:relative;">
+                <input type="text" id="chat-input" class="form-control" placeholder="Message..." autocomplete="off" />
+                <button class="btn btn-primary" id="send-btn">${t.send}</button>
+                <button class="emoji-btn" id="emoji-btn" title="${t.emoji}"><i class="fas fa-smile"></i></button>
+                <button class="voice-btn" id="voice-btn" title="${t.voice}"><i class="fas fa-microphone"></i></button>
+                <button class="video-btn" id="video-btn" title="${t.video}"><i class="fas fa-video"></i></button>
+                <button class="btn btn-outline-secondary" id="file-btn" title="${t.file}"><i class="fas fa-paperclip"></i></button>
+                <input type="file" id="file-input" style="display:none;">
+              </div>
+              <audio id="remote-audio" controls autoplay style="display:none;width:100%;"></audio>
+              <video id="remote-video" controls autoplay style="display:none;width:100%;max-height:180px;border-radius:10px;"></video>
+              <div class="text-center small text-muted mt-2">${t.drop_file}</div>
+            </div>
+          </div>
+        </section>
+      `;
+
+      document.getElementById('emoji-btn').onclick = (e) => {
+        let picker = document.createElement('emoji-picker');
+        picker.style.position = "absolute";
+        picker.style.right = "0";
+        picker.style.bottom = "50px";
+        picker.addEventListener('emoji-click', event => {
+          document.getElementById('chat-input').value += event.detail.unicode;
+          picker.remove();
+        });
+        document.querySelector('.input-group').appendChild(picker);
+      };
+
+      document.getElementById('file-btn').onclick = () => document.getElementById('file-input').click();
+      document.getElementById('file-input').onchange = (e) => {
+        if (e.target.files.length && conn && conn.open) {
+          const file = e.target.files[0];
+          sendFile(file);
+        }
+      };
+
+      document.getElementById('chat-box').ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; };
+      document.getElementById('chat-box').ondrop = e => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length && conn && conn.open) {
+          sendFile(e.dataTransfer.files[0]);
+        }
+      };
+
+      document.getElementById('send-btn').onclick = sendMsg;
+      document.getElementById('chat-input').onkeydown = e => { if (e.key === "Enter") sendMsg(); };
+      document.getElementById('connect-btn').onclick = connectToPeer;
+      document.getElementById('disconnect-btn').onclick = disconnectPeer;
+      document.getElementById('voice-btn').onclick = toggleVoiceCall;
+      document.getElementById('video-btn').onclick = toggleVideoCall;
+
+      if (!peer) {
+        peer = new Peer(peerId, {debug: 2});
+        peer.on('open', id => {});
+        peer.on('connection', c => {
+          if (conn) conn.close();
+          conn = c;
+          setupConn();
+        });
+        peer.on('call', incomingCall => {
+          if (incomingCall.metadata && incomingCall.metadata.type === "video") {
+            navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(stream => {
+              videoCall = incomingCall;
+              videoCall.answer(stream);
+              myStream = stream;
+              setupVideoCall();
+            });
+          } else {
+            navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+              call = incomingCall;
+              call.answer(stream);
+              myStream = stream;
+              setupCall();
+            });
+          }
+        });
+      }
+      renderChatBox();
+    }
+
+    function connectToPeer() {
+      const pid = document.getElementById('peerid-input').value.trim();
+      if (!pid) return;
+      if (conn) conn.close();
+      conn = peer.connect(pid);
+      setupConn();
+    }
+    function disconnectPeer() {
+      if (conn) conn.close();
+      conn = null;
+      peerNick = "";
+      renderChatBox();
+      document.getElementById('connect-btn').classList.remove('d-none');
+      document.getElementById('disconnect-btn').classList.add('d-none');
+    }
+    function setupConn() {
+      conn.on('open', ()=> {
+        conn.send({type:"nick", nick:myNick});
+        document.getElementById('connect-btn').classList.add('d-none');
+        document.getElementById('disconnect-btn').classList.remove('d-none');
+        renderChatBox();
+      });
+      conn.on('data', data => {
+        if (typeof data === "string") {
+          chatHistory.push({from:peerNick||t.peer, text:data, type:"msg"});
+          showNotification(peerNick||t.peer, data);
+        } else if (data && data.type === "nick") {
+          peerNick = data.nick || t.peer;
+        } else if (data && data.type === "file") {
+          chatHistory.push({from:peerNick||t.peer, type:"file", name:data.name, size:data.size, file:data.file});
+          if (data.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            gallery.push({name:data.name, blob:data.file});
+            localStorage.setItem('dpm-gallery', JSON.stringify(gallery));
+          }
+        }
+        renderChatBox();
+      });
+      if (conn.open) conn.send({type:"nick", nick:myNick});
+      conn.on('close', ()=> {
+        conn = null;
+        peerNick = "";
+        renderChatBox();
+        document.getElementById('connect-btn').classList.remove('d-none');
+        document.getElementById('disconnect-btn').classList.add('d-none');
+      });
+    }
+    function sendMsg() {
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg || !conn || !conn.open) return;
+      conn.send(msg);
+      chatHistory.push({from:myNick, text:msg, type:"msg"});
+      input.value = "";
+      renderChatBox();
+    }
+    function sendFile(file) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        const arr = new Uint8Array(reader.result);
+        conn.send({type:"file", name:file.name, size:file.size, file:arr});
+        chatHistory.push({from:myNick, type:"file", name:file.name, size:file.size, file:arr});
+        if (file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+          gallery.push({name:file.name, blob:arr});
+          localStorage.setItem('dpm-gallery', JSON.stringify(gallery));
+        }
+        renderChatBox();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    function renderChatBox() {
+      const box = document.getElementById('chat-box');
+      if (!box) return;
+      box.innerHTML = "";
+      chatHistory.forEach(msg => {
+        if (msg.type === "msg") {
+          box.innerHTML += `<div class="mb-1 ${msg.from===myNick?'msg-self':'msg-peer'}"><b>${msg.from}:</b> ${msg.text}</div>`;
+        } else if (msg.type === "file") {
+          const blob = new Blob([msg.file]);
+          const url = URL.createObjectURL(blob);
+          box.innerHTML += `<div class="mb-1 ${msg.from===myNick?'msg-self':'msg-peer'} msg-file">
+            <b>${msg.from}:</b> <a href="${url}" download="${msg.name}">${t.file}: ${msg.name} (${(msg.size/1024).toFixed(1)} KB)</a>
+          </div>`;
+        }
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function toggleVoiceCall() {
+      const btn = document.getElementById('voice-btn');
+      if (call) {
+        call.close();
+        call = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        btn.classList.remove('active');
+        document.getElementById('remote-audio').style.display = "none";
+        return;
+      }
+      if (!conn || !conn.open) return;
+      navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+        myStream = stream;
+        call = peer.call(conn.peer, stream, {metadata:{type:"voice"}});
+        setupCall();
+        btn.classList.add('active');
+      });
+    }
+    function setupCall() {
+      call.on('stream', remote => {
+        remoteStream = remote;
+        const audio = document.getElementById('remote-audio');
+        audio.srcObject = remote;
+        audio.style.display = "block";
+        audio.play();
+      });
+      call.on('close', () => {
+        const audio = document.getElementById('remote-audio');
+        audio.srcObject = null;
+        audio.style.display = "none";
+        call = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        document.getElementById('voice-btn').classList.remove('active');
+      });
+    }
+
+    function toggleVideoCall() {
+      const btn = document.getElementById('video-btn');
+      if (videoCall) {
+        videoCall.close();
+        videoCall = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        btn.classList.remove('active');
+        document.getElementById('remote-video').style.display = "none";
+        return;
+      }
+      if (!conn || !conn.open) return;
+      navigator.mediaDevices.getUserMedia({audio:true, video:true}).then(stream => {
+        myStream = stream;
+        videoCall = peer.call(conn.peer, stream, {metadata:{type:"video"}});
+        setupVideoCall();
+        btn.classList.add('active');
+      });
+    }
+    function setupVideoCall() {
+      videoCall.on('stream', remote => {
+        remoteStream = remote;
+        const video = document.getElementById('remote-video');
+        video.srcObject = remote;
+        video.style.display = "block";
+        video.play();
+      });
+      videoCall.on('close', () => {
+        const video = document.getElementById('remote-video');
+        video.srcObject = null;
+        video.style.display = "none";
+        videoCall = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        document.getElementById('video-btn').classList.remove('active');
+      });
+    }
+
+    function showNotification(title, body) {
+      if (Notification.permission === "granted") {
+        new Notification(title, {body});
+      }
+    }
+    if (window.Notification && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    function renderGallery() {
+      document.getElementById('app').innerHTML = `
+        <section class="page-gallery">
+          <h2 class="mb-4 text-center"><i class="fas fa-images"></i> ${t.gallery}</h2>
+          <div class="d-flex flex-wrap justify-content-center">
+            ${gallery.map(img => {
+              const blob = new Blob([img.blob]);
+              const url = URL.createObjectURL(blob);
+              return `<a href="${url}" target="_blank"><img class="gallery-img" src="${url}" alt="${img.name}"></a>`;
+            }).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderHome() {
+      document.getElementById('app').innerHTML = `
+        <section class="page-home">
+          <h2 class="mb-4 text-center"><i class="fas fa-comments"></i> ${t.title}</h2>
+          <div class="card shadow-sm mb-4">
+            <div class="card-body">
+              <h5 class="card-title">${t.about_title}</h5>
+              <p>${t.about_desc}</p>
+              <ul>
+                <li>${t.adv1}</li>
+                <li>${t.adv2}</li>
+                <li>${t.adv3}</li>
+                <li>${t.adv4}</li>
+              </ul>
+              <ol>
+                <li>${t.how1}</li>
+                <li>${t.how2}</li>
+                <li>${t.how3}</li>
+              </ol>
+              <div class="text-center mt-4">
+                <button id="go-profile" class="btn btn-primary btn-lg">
+                  <i class="fas fa-user"></i> ${t.go_profile}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+      document.getElementById('go-profile').onclick = () => {
+        if (!localStorage.getItem('dpm-user')) showRegisterModal();
+        else page = "profile", render();
+      };
+    }
+
     function render() {
       renderHeader();
       renderNav();
       renderFooter();
-      renderHome();
+      if (page === "home") renderHome();
+      if (page === "profile") renderProfile();
+      if (page === "chat") renderChat();
+      if (page === "gallery") renderGallery();
+      if (localStorage.getItem("theme") === "night") document.body.classList.add("night");
+      else document.body.classList.remove("night");
     }
     render();
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js"></script>
 </body>
 </html>
