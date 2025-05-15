@@ -6,7 +6,36 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: 'Roboto', sans-serif; background: #eaeff2; color: #222b3a;}
+    header, nav, footer { background: #fff;}
+    .nav-link.active { color: #3390ec !important;}
+    .btn-primary { background: #3390ec;}
+    .btn-primary:hover { background: #1976d2;}
+    .btn-success { background: #43d854;}
+    .btn-success:hover { background: #2ba33a;}
+    .btn-secondary { background: #7c8a9a;}
+    footer { margin-top: 3rem; text-align: center; border-top: 1px solid #d3dde6;}
+    .btn-circle { border-radius:50%; }
+    .avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #3390ec 60%, #43d854 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 2.2em; margin: 0 auto 10px auto; box-shadow: 0 2px 16px #3390ec22; object-fit: cover; overflow: hidden;}
+    .avatar.online { box-shadow: 0 0 0 4px #43d85455; }
+    .copy-btn { border: none; background: none; color: #3390ec; cursor: pointer; }
+    .copy-btn:hover { color: #1976d2; }
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #43d854; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px #43d85499;}
+    .modal-profile { position: fixed; top:50%; left:50%; transform:translate(-50%,-50%); background: #fff; color: #222b3a; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); z-index:1050; min-width: 320px; max-width: 95vw; padding: 2rem 1.5rem 1rem 1.5rem;}
+    .modal-backdrop { position: fixed; top:0; left:0; width:100vw; height:100vh; background: rgba(0,0,0,0.3); z-index:1040;}
+    #chat-box { background: #f4f8fb; border: 1px solid #d3dde6; border-radius: 0.5rem; min-height: 200px; max-height: 350px; overflow-y: auto; padding: 1rem;}
+    .msg-self { text-align: right; color: #3390ec; }
+    .msg-peer { text-align: left; color: #43d854; }
+    .msg-file { display: inline-block; margin: 0.2em 0; }
+    .voice-btn { border: none; background: none; font-size: 1.4em; color: #3390ec;}
+    .voice-btn.active { color: #43d854;}
+    @media (max-width: 600px) {
+      .avatar { width: 50px; height: 50px; font-size: 1.4em;}
+      .modal-profile { min-width:220px; }
+      #chat-box { font-size: 0.95em; }
+    }
+  </style>
 </head>
 <body>
   <header id="header"></header>
@@ -14,6 +43,403 @@
   <main id="app"></main>
   <footer id="footer"></footer>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script type="module" src="script.js"></script>
+  <script>
+    // ENGLISH ONLY
+    const t = {
+      registration: "Registration",
+      nickname: "Nickname",
+      password: "Password",
+      captcha: "Captcha",
+      register: "Register",
+      enter_nick_pass: "Enter nickname and password",
+      wrong_captcha: "Wrong captcha answer",
+      login: "Login",
+      wrong_login: "Wrong nickname or password",
+      edit_profile: "Profile Settings",
+      save: "Save",
+      copy: "Copy",
+      copied: "Copied!",
+      clear_history: "Clear history",
+      history_cleared: "History cleared",
+      logout: "Logout",
+      nav_profile: "Profile",
+      nav_chat: "Chat",
+      footer_made: "Made with ❤️",
+      title: "Decentralized Private Messenger",
+      about_title: "About DPM",
+      about_desc: "DPM is a secure messenger that works directly between users without central servers.",
+      adv1: "No central servers - your data stays between you and your contacts",
+      adv2: "End-to-end encryption for all messages",
+      adv3: "No registration required - just create a nickname",
+      adv4: "Open source and transparent",
+      how1: "Create a nickname and password",
+      how2: "Share your peer ID with contacts",
+      how3: "Start chatting securely",
+      go_profile: "Go to Profile",
+      online: "Online",
+      peer_id: "Peer ID",
+      connect: "Connect",
+      disconnect: "Disconnect",
+      send: "Send",
+      enter_peerid: "Enter peer's ID",
+      file: "File",
+      select_file: "Select file",
+      drop_file: "Drop file here",
+      voice: "Voice",
+      start_voice: "Start voice call",
+      stop_voice: "Stop voice call",
+      you: "You",
+      peer: "Peer"
+    };
+    let page = "home";
+    let peer = null, conn = null, call = null, chatHistory = [];
+    let myStream = null, remoteStream = null;
+
+    function renderHeader() {
+      document.getElementById("header").innerHTML = `
+        <div class="container-fluid py-2 px-3 d-flex align-items-center justify-content-between flex-wrap">
+          <span class="fs-4 fw-bold d-flex align-items-center gap-2">
+            <i class="fas fa-shield-alt text-primary"></i> DPM
+          </span>
+        </div>
+      `;
+    }
+
+    function renderNav() {
+      if (page === "profile" || page === "chat") {
+        document.getElementById("nav").innerHTML = `
+          <ul class="nav nav-pills justify-content-center">
+            <li class="nav-item">
+              <a class="nav-link${page==='profile'?' active':''}" href="#" id="nav-profile"><i class="fas fa-user"></i> ${t.nav_profile}</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link${page==='chat'?' active':''}" href="#" id="nav-chat"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" id="nav-logout"><i class="fas fa-sign-out-alt"></i> ${t.logout}</a>
+            </li>
+          </ul>
+        `;
+        document.getElementById("nav-profile").onclick = e => { e.preventDefault(); page = "profile"; render(); };
+        document.getElementById("nav-chat").onclick = e => { e.preventDefault(); page = "chat"; render(); };
+        document.getElementById("nav-logout").onclick = e => {
+          e.preventDefault(); localStorage.removeItem("dpm-user"); page = "home"; render();
+        };
+      } else {
+        document.getElementById("nav").innerHTML = "";
+      }
+    }
+
+    function renderFooter() {
+      document.getElementById("footer").innerHTML = `
+        <div>
+          <span>© 2025 DPM | ${t.footer_made}</span>
+        </div>
+      `;
+    }
+
+    function showRegisterModal() {
+      const a = Math.floor(Math.random() * 10 + 1), b = Math.floor(Math.random() * 10 + 1), captchaAnswer = a + b;
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-profile">
+          <h5 class="mb-3 text-center">${t.registration}</h5>
+          <input type="text" id="register-nick" placeholder="${t.nickname}" class="form-control mb-2" />
+          <input type="password" id="register-pass" placeholder="${t.password}" class="form-control mb-2" />
+          <div class="mb-2">${t.captcha}: <b>${a} + ${b}</b>?</div>
+          <input type="text" id="register-captcha" placeholder="${t.captcha}" class="form-control mb-2" />
+          <button class="btn btn-primary w-100" id="register-btn">${t.register}</button>
+          <div id="register-err" class="text-danger mt-2"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector('#register-btn').onclick = () => {
+        const nick = modal.querySelector('#register-nick').value.trim();
+        const pass = modal.querySelector('#register-pass').value.trim();
+        const captcha = modal.querySelector('#register-captcha').value.trim();
+        const err = modal.querySelector('#register-err');
+        if (!nick || !pass) { err.textContent = t.enter_nick_pass; return; }
+        if (+captcha !== captchaAnswer) { err.textContent = t.wrong_captcha; return; }
+        localStorage.setItem('dpm-user', JSON.stringify({nick, pass, avatar: '', status: 'online'}));
+        document.body.removeChild(modal);
+        page = 'profile'; render();
+      };
+      modal.querySelector('.modal-backdrop').onclick = () => {};
+    }
+
+    function renderHome() {
+      document.getElementById('app').innerHTML = `
+        <section class="page-home">
+          <h2 class="mb-4 text-center"><i class="fas fa-comments"></i> ${t.title}</h2>
+          <div class="card shadow-sm mb-4">
+            <div class="card-body">
+              <h5 class="card-title">${t.about_title}</h5>
+              <p>${t.about_desc}</p>
+              <ul>
+                <li>${t.adv1}</li>
+                <li>${t.adv2}</li>
+                <li>${t.adv3}</li>
+                <li>${t.adv4}</li>
+              </ul>
+              <ol>
+                <li>${t.how1}</li>
+                <li>${t.how2}</li>
+                <li>${t.how3}</li>
+              </ol>
+              <div class="text-center mt-4">
+                <button id="go-profile" class="btn btn-primary btn-lg">
+                  <i class="fas fa-user"></i> ${t.go_profile}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+      document.getElementById('go-profile').onclick = () => {
+        if (!localStorage.getItem('dpm-user')) showRegisterModal();
+        else page = "profile", render();
+      };
+    }
+
+    function renderProfile() {
+      const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
+      let peerId = localStorage.getItem('dpm-peerid');
+      if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
+      let avatarLetter = (user.nick && user.nick.length > 0) ? user.nick[0].toUpperCase() : "U";
+      let avatarHtml = `<div class="avatar online" title="${t.online}">${avatarLetter}</div>`;
+      document.getElementById('app').innerHTML = `
+        <section class="page-profile">
+          <h2 class="mb-4 text-center"><i class="fas fa-user"></i> ${t.nav_profile}</h2>
+          <div class="card mx-auto" style="max-width: 400px;">
+            <div class="card-body text-center">
+              ${avatarHtml}
+              <div class="mb-2">
+                <span class="status-dot"></span>
+                <span>${t.online}</span>
+              </div>
+              <div class="mb-2"><b>${t.nickname}:</b> <span id="profile-nick">${user.nick || ""}</span></div>
+              <div class="mb-2"><b>${t.password}:</b> ********</div>
+              <div class="mb-3">
+                <b>${t.peer_id}:</b>
+                <span id="profile-peerid" style="font-family:monospace">${peerId}</span>
+                <button class="copy-btn" id="copy-peerid" title="${t.copy}"><i class="fas fa-copy"></i></button>
+                <span id="copy-status" class="text-success ms-2"></span>
+              </div>
+              <button class="btn btn-outline-primary w-100 mb-2" id="to-chat"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</button>
+            </div>
+          </div>
+        </section>
+      `;
+      document.getElementById('copy-peerid').onclick = () => {
+        navigator.clipboard.writeText(peerId);
+        document.getElementById('copy-status').textContent = t.copied;
+        setTimeout(()=>{document.getElementById('copy-status').textContent='';},1500);
+      };
+      document.getElementById('to-chat').onclick = () => { page = 'chat'; render(); };
+    }
+
+    // CHAT + VOICE + FILES
+    function renderChat() {
+      const user = JSON.parse(localStorage.getItem('dpm-user') || '{}');
+      let peerId = localStorage.getItem('dpm-peerid');
+      if (!peerId) { peerId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); localStorage.setItem('dpm-peerid', peerId);}
+      document.getElementById('app').innerHTML = `
+        <section class="page-chat">
+          <h2 class="mb-4 text-center"><i class="fas fa-comment-dots"></i> ${t.nav_chat}</h2>
+          <div class="card mx-auto" style="max-width: 500px;">
+            <div class="card-body">
+              <div class="mb-2"><b>${t.peer_id}:</b> <span style="font-family:monospace">${peerId}</span></div>
+              <div class="mb-2">
+                <input type="text" id="peerid-input" class="form-control" placeholder="${t.enter_peerid}" />
+                <button class="btn btn-success mt-2 w-100" id="connect-btn">${t.connect}</button>
+                <button class="btn btn-secondary mt-2 w-100 d-none" id="disconnect-btn">${t.disconnect}</button>
+              </div>
+              <div id="chat-box" class="mb-2"></div>
+              <div class="input-group mb-2">
+                <input type="text" id="chat-input" class="form-control" placeholder="Message..." autocomplete="off" />
+                <button class="btn btn-primary" id="send-btn">${t.send}</button>
+                <button class="voice-btn" id="voice-btn" title="${t.voice}"><i class="fas fa-microphone"></i></button>
+                <button class="btn btn-outline-secondary" id="file-btn" title="${t.file}"><i class="fas fa-paperclip"></i></button>
+                <input type="file" id="file-input" style="display:none;">
+              </div>
+              <audio id="remote-audio" controls autoplay style="display:none;width:100%;"></audio>
+              <div class="text-center small text-muted mt-2">${t.drop_file}</div>
+            </div>
+          </div>
+        </section>
+      `;
+
+      document.getElementById('file-btn').onclick = () => document.getElementById('file-input').click();
+      document.getElementById('file-input').onchange = (e) => {
+        if (e.target.files.length && conn && conn.open) {
+          const file = e.target.files[0];
+          sendFile(file);
+        }
+      };
+
+      // Drag&Drop
+      document.getElementById('chat-box').ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; };
+      document.getElementById('chat-box').ondrop = e => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length && conn && conn.open) {
+          sendFile(e.dataTransfer.files[0]);
+        }
+      };
+
+      document.getElementById('send-btn').onclick = sendMsg;
+      document.getElementById('chat-input').onkeydown = e => { if (e.key === "Enter") sendMsg(); };
+      document.getElementById('connect-btn').onclick = connectToPeer;
+      document.getElementById('disconnect-btn').onclick = disconnectPeer;
+      document.getElementById('voice-btn').onclick = toggleVoiceCall;
+
+      // PeerJS setup
+      if (!peer) {
+        peer = new Peer(peerId, {debug: 2});
+        peer.on('open', id => {});
+        peer.on('connection', c => {
+          if (conn) conn.close();
+          conn = c;
+          setupConn();
+        });
+        peer.on('call', incomingCall => {
+          if (call) call.close();
+          navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+            call = incomingCall;
+            call.answer(stream);
+            myStream = stream;
+            setupCall();
+          });
+        });
+      }
+      renderChatBox();
+    }
+
+    function connectToPeer() {
+      const pid = document.getElementById('peerid-input').value.trim();
+      if (!pid) return;
+      if (conn) conn.close();
+      conn = peer.connect(pid);
+      setupConn();
+    }
+    function disconnectPeer() {
+      if (conn) conn.close();
+      conn = null;
+      renderChatBox();
+      document.getElementById('connect-btn').classList.remove('d-none');
+      document.getElementById('disconnect-btn').classList.add('d-none');
+    }
+    function setupConn() {
+      conn.on('open', ()=> {
+        document.getElementById('connect-btn').classList.add('d-none');
+        document.getElementById('disconnect-btn').classList.remove('d-none');
+        renderChatBox();
+      });
+      conn.on('data', data => {
+        if (typeof data === "string") {
+          chatHistory.push({from:"peer", text:data, type:"msg"});
+        } else if (data && data.type === "file") {
+          chatHistory.push({from:"peer", type:"file", name:data.name, size:data.size, file:data.file});
+        }
+        renderChatBox();
+      });
+      conn.on('close', ()=> {
+        conn = null;
+        renderChatBox();
+        document.getElementById('connect-btn').classList.remove('d-none');
+        document.getElementById('disconnect-btn').classList.add('d-none');
+      });
+    }
+    function sendMsg() {
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg || !conn || !conn.open) return;
+      conn.send(msg);
+      chatHistory.push({from:"me", text:msg, type:"msg"});
+      input.value = "";
+      renderChatBox();
+    }
+    function sendFile(file) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        const arr = new Uint8Array(reader.result);
+        conn.send({type:"file", name:file.name, size:file.size, file:arr});
+        chatHistory.push({from:"me", type:"file", name:file.name, size:file.size, file:arr});
+        renderChatBox();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    function renderChatBox() {
+      const box = document.getElementById('chat-box');
+      if (!box) return;
+      box.innerHTML = "";
+      chatHistory.forEach(msg => {
+        if (msg.type === "msg") {
+          box.innerHTML += `<div class="mb-1 ${msg.from==='me'?'msg-self':'msg-peer'}"><b>${msg.from==='me'?t.you:t.peer}:</b> ${msg.text}</div>`;
+        } else if (msg.type === "file") {
+          const blob = new Blob([msg.file]);
+          const url = URL.createObjectURL(blob);
+          box.innerHTML += `<div class="mb-1 ${msg.from==='me'?'msg-self':'msg-peer'} msg-file">
+            <b>${msg.from==='me'?t.you:t.peer}:</b> <a href="${url}" download="${msg.name}">${t.file}: ${msg.name} (${(msg.size/1024).toFixed(1)} KB)</a>
+          </div>`;
+        }
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // VOICE CHAT
+    function toggleVoiceCall() {
+      const btn = document.getElementById('voice-btn');
+      if (call) {
+        call.close();
+        call = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        btn.classList.remove('active');
+        document.getElementById('remote-audio').style.display = "none";
+        return;
+      }
+      if (!conn || !conn.open) return;
+      navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+        myStream = stream;
+        call = peer.call(conn.peer, stream);
+        setupCall();
+        btn.classList.add('active');
+      });
+    }
+    function setupCall() {
+      call.on('stream', remote => {
+        remoteStream = remote;
+        const audio = document.getElementById('remote-audio');
+        audio.srcObject = remote;
+        audio.style.display = "block";
+        audio.play();
+      });
+      call.on('close', () => {
+        const audio = document.getElementById('remote-audio');
+        audio.srcObject = null;
+        audio.style.display = "none";
+        call = null;
+        if (myStream) {
+          myStream.getTracks().forEach(track => track.stop());
+          myStream = null;
+        }
+        document.getElementById('voice-btn').classList.remove('active');
+      });
+    }
+
+    function render() {
+      renderHeader();
+      renderNav();
+      renderFooter();
+      if (page === "home") renderHome();
+      if (page === "profile") renderProfile();
+      if (page === "chat") renderChat();
+    }
+
+    render();
+  </script>
 </body>
 </html>
